@@ -18,7 +18,9 @@ def get_dataset_overview(df: pd.DataFrame) -> dict[str, Any]:
         "n_rows": int(df.shape[0]),
         "n_columns": int(df.shape[1]),
         "columns": list(df.columns),
-        "memory_usage_mb": round(df.memory_usage(deep=True).sum() / 1_000_000, 3),
+        "memory_usage_mb": float(
+             round(df.memory_usage(deep=True).sum() / 1_000_000, 3)
+),
     }
 
 
