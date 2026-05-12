@@ -1,4 +1,4 @@
-const BACKEND_URL = "https://ai-data-report-generator-zr71.onrender.com";
+const BACKEND_URL = "https://ai-data-report-generator-zn71.onrender.com";
 
 export async function POST(request: Request) {
   const formData = await request.formData();
