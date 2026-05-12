@@ -1,14 +1,13 @@
-from fastapi import FastAPI, File, Form, UploadFile
-
-from src.data_loader import load_dataset, preview_dataset
-from src.data_quality import run_data_quality_checks
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+
 from src.data_loader import (
     get_available_excel_sheets,
     get_file_type,
     load_dataset,
     preview_dataset,
 )
+from src.data_quality import run_data_quality_checks
+
 
 app = FastAPI(
     title="AI Data Report Generator API",
@@ -46,6 +45,7 @@ async def list_excel_sheets(file: UploadFile = File(...)):
     except Exception as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
+
 @app.post("/preview")
 async def preview_file(
     file: UploadFile = File(...),
@@ -65,7 +65,9 @@ async def preview_file(
             separator=separator,
             encoding=encoding,
         )
-       return preview_dataset(df)
+
+        return preview_dataset(df)
+
     except Exception as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -90,10 +92,12 @@ async def analyze_dataset(
             encoding=encoding,
         )
         report = run_data_quality_checks(df)
+
         return {
             "overview": report["overview"],
             "duplicates": report["duplicates"],
             "constant_columns": report["constant_columns"],
         }
+
     except Exception as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
