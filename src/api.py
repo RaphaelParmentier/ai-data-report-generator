@@ -114,11 +114,7 @@ async def analyze_dataset(
         )
         report = run_data_quality_checks(df)
 
-        return {
-            "overview": report["overview"],
-            "duplicates": report["duplicates"],
-            "constant_columns": report["constant_columns"],
-        }
+        return report
 
     except Exception as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
