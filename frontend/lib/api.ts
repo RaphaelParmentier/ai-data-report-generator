@@ -1,12 +1,8 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://ai-data-report-generator-zr71.onrender.com";
-
 export async function postFormData<T>(
   endpoint: string,
   formData: FormData
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(`/api${endpoint}`, {
     method: "POST",
     body: formData,
   });
