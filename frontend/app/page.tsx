@@ -1,6 +1,7 @@
 "use client";
 
 import { postFormData } from "@/lib/api";
+import { downloadAnalysisReport } from "@/lib/report";
 import { useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import {
@@ -22,6 +23,17 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+const MAX_FILE_SIZE_MB = 5;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+type ApiStatus = "checking" | "ready" | "error";
+
+type SheetsResponse = {
+  file_type: string;
+  sheets: string[];
+  message?: string;
+};
 
 type AnalyzeApiResponse = {
   filename: string;
@@ -65,7 +77,7 @@ type PreviewResponse = {
   preview_table: Record<string, string | number | null>[];
 };
 
-type AnalyzeResponse = {
+export type AnalyzeResponse = {
   status: "ok" | "warning";
   quality_score: number;
   quality_summary: {
@@ -99,31 +111,22 @@ type AnalyzeResponse = {
   };
 };
 
-type ApiStatus = "checking" | "ready" | "error";
-
-const MAX_FILE_SIZE_MB = 5;
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [separator, setSeparator] = useState(",");
   const [encoding, setEncoding] = useState("utf-8");
   const [skiprows, setSkiprows] = useState(0);
+  const [sheetName, setSheetName] = useState<string | null>(null);
+  const [sheets, setSheets] = useState<string[]>([]);
 
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [analysis, setAnalysis] = useState<AnalyzeResponse | null>(null);
 
   const [previewLoading, setPreviewLoading] = useState(false);
   const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  const [sheetsLoading, setSheetsLoading] = useState(false);
   const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
-
-  function resetResults() {
-    setPreview(null);
-    setAnalysis(null);
-    setError(null);
-  }
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function checkApiHealth() {
@@ -144,15 +147,61 @@ export default function Home() {
     checkApiHealth();
   }, []);
 
-  function handleFileSelection(selectedFile: File | null) {
+  function resetResults() {
+    setPreview(null);
+    setAnalysis(null);
+    setError(null);
+  }
+
+  function resetWorkspace() {
+    setFile(null);
+    setSeparator(",");
+    setEncoding("utf-8");
+    setSkiprows(0);
+    setSheetName(null);
+    setSheets([]);
+    resetResults();
+  }
+
+  async function loadExcelSheets(selectedFile: File) {
+    setSheetsLoading(true);
+    setSheets([]);
+    setSheetName(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const data = await postFormData<SheetsResponse>("/sheets", formData);
+
+      if (data.sheets.length > 0) {
+        setSheets(data.sheets);
+        setSheetName(data.sheets[0]);
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de lire les feuilles Excel."
+      );
+    } finally {
+      setSheetsLoading(false);
+    }
+  }
+
+  async function handleFileSelection(selectedFile: File | null) {
     if (!selectedFile) {
       setFile(null);
+      setSheetName(null);
+      setSheets([]);
       resetResults();
       return;
     }
 
     if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
       setFile(null);
+      setSheetName(null);
+      setSheets([]);
       setPreview(null);
       setAnalysis(null);
       setError(
@@ -162,21 +211,21 @@ export default function Home() {
     }
 
     setFile(selectedFile);
+    setSheetName(null);
+    setSheets([]);
     resetResults();
-  }
 
-  function resetWorkspace() {
-    setFile(null);
-    setSeparator(",");
-    setEncoding("utf-8");
-    setSkiprows(0);
-    resetResults();
+    if (isExcelFile(selectedFile.name)) {
+      await loadExcelSheets(selectedFile);
+    }
   }
 
   async function loadSampleDataset(samplePath: string) {
     setError(null);
     setPreview(null);
     setAnalysis(null);
+    setSheets([]);
+    setSheetName(null);
     setPreviewLoading(true);
 
     try {
@@ -187,8 +236,9 @@ export default function Home() {
       }
 
       const blob = await response.blob();
+      const filename = samplePath.split("/").pop() ?? "sample.csv";
 
-      const sampleFile = new File([blob], samplePath.split("/").pop() ?? "sample.csv", {
+      const sampleFile = new File([blob], filename, {
         type: "text/csv",
       });
 
@@ -226,7 +276,7 @@ export default function Home() {
       maxSize: MAX_FILE_SIZE_BYTES,
       multiple: false,
       onDrop: (acceptedFiles) => {
-        handleFileSelection(acceptedFiles[0] ?? null);
+        void handleFileSelection(acceptedFiles[0] ?? null);
       },
       onDropRejected: (fileRejections) => {
         const firstError = fileRejections[0]?.errors[0];
@@ -252,6 +302,10 @@ export default function Home() {
     formData.append("separator", separator);
     formData.append("encoding", encoding);
     formData.append("skiprows", String(skiprows));
+
+    if (sheetName) {
+      formData.append("sheet_name", sheetName);
+    }
 
     return formData;
   }
@@ -308,17 +362,21 @@ export default function Home() {
       )
     );
 
-  const isBusy = previewLoading || analysisLoading;
+  const isBusy = previewLoading || analysisLoading || sheetsLoading;
 
   return (
     <main className="min-h-screen bg-[#090909] text-neutral-100">
       <section className="mx-auto flex max-w-7xl flex-col gap-10 px-6 py-10">
         <header className="flex flex-col gap-4">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-orange-400/30 bg-orange-400/10 px-4 py-2 text-sm text-orange-200">
-            <Sparkles className="h-4 w-4" />
-            AI Data Report Generator
+          <div className="flex flex-wrap gap-3">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-orange-400/30 bg-orange-400/10 px-4 py-2 text-sm text-orange-200">
+              <Sparkles className="h-4 w-4" />
+              AI Data Report Generator
+            </div>
+
+            <ApiStatusBadge status={apiStatus} />
           </div>
-          <ApiStatusBadge status={apiStatus} />
+
           <div className="max-w-4xl">
             <h1 className="text-4xl font-semibold tracking-tight md:text-6xl">
               Transforme un fichier brut en diagnostic data exploitable.
@@ -360,33 +418,33 @@ export default function Home() {
               </span>
 
               <span className="mt-1 text-xs text-slate-500">
-                CSV, XLSX ou XLS · max 5 MB
+                CSV, XLSX ou XLS · max {MAX_FILE_SIZE_MB} MB
               </span>
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() =>
-                loadSampleDataset("/samples/customer_clean_sample.csv")
-              }
-              disabled={previewLoading}
-              className="flex items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-medium text-emerald-200 transition hover:border-emerald-300 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Clean sample
-            </button>
+              <button
+                type="button"
+                onClick={() =>
+                  loadSampleDataset("/samples/customer_clean_sample.csv")
+                }
+                disabled={previewLoading}
+                className="flex items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-medium text-emerald-200 transition hover:border-emerald-300 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Clean sample
+              </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                loadSampleDataset("/samples/customer_messy_sample.csv")
-              }
-              disabled={previewLoading}
-              className="flex items-center justify-center gap-2 rounded-xl border border-orange-400/30 bg-orange-400/10 px-4 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Messy sample
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() =>
+                  loadSampleDataset("/samples/customer_messy_sample.csv")
+                }
+                disabled={previewLoading}
+                className="flex items-center justify-center gap-2 rounded-xl border border-orange-400/30 bg-orange-400/10 px-4 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Messy sample
+              </button>
+            </div>
 
             {file && (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
@@ -404,7 +462,7 @@ export default function Home() {
 
                 <button
                   type="button"
-                  onClick={() => handleFileSelection(null)}
+                  onClick={() => void handleFileSelection(null)}
                   className="rounded-full border border-slate-700 p-2 text-slate-400 transition hover:border-red-400 hover:text-red-300"
                   aria-label="Remove selected file"
                 >
@@ -455,14 +513,68 @@ export default function Home() {
                 />
               </div>
 
-              <InputField
-                label="Encoding"
-                value={encoding}
-                onChange={(value) => {
-                  setEncoding(value);
-                  resetResults();
-                }}
-              />
+              <div>
+                <label className="text-sm text-slate-300">Encoding</label>
+
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {[
+                    { label: "UTF-8", value: "utf-8" },
+                    { label: "Latin-1", value: "latin-1" },
+                    { label: "Win-1252", value: "cp1252" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setEncoding(option.value);
+                        resetResults();
+                      }}
+                      className={`rounded-xl border px-3 py-2 text-xs transition ${
+                        encoding === option.value
+                          ? "border-orange-400 bg-orange-400/10 text-orange-200"
+                          : "border-slate-700 bg-slate-950 text-slate-400 hover:border-orange-400/60 hover:text-orange-200"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  value={encoding}
+                  onChange={(event) => {
+                    setEncoding(event.target.value);
+                    resetResults();
+                  }}
+                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-orange-400"
+                />
+              </div>
+
+              {sheetsLoading && (
+                <div className="rounded-xl border border-orange-400/20 bg-orange-400/10 p-3 text-sm text-orange-100">
+                  Lecture des feuilles Excel...
+                </div>
+              )}
+
+              {sheets.length > 0 && (
+                <div>
+                  <label className="text-sm text-slate-300">Excel sheet</label>
+                  <select
+                    value={sheetName ?? ""}
+                    onChange={(event) => {
+                      setSheetName(event.target.value || null);
+                      resetResults();
+                    }}
+                    className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-orange-400"
+                  >
+                    {sheets.map((sheet) => (
+                      <option key={sheet} value={sheet}>
+                        {sheet}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="text-sm text-slate-300">Skip rows</label>
@@ -618,6 +730,27 @@ export default function Home() {
 
                 {analysis && (
                   <Panel title="Analyse qualité visuelle">
+                    <div className="mb-6 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadAnalysisReport({
+                            filename: file?.name ?? "unknown_file",
+                            sheetName,
+                            loadingOptions: {
+                              separator,
+                              encoding,
+                              skiprows,
+                            },
+                            analysis,
+                          })
+                        }
+                        className="rounded-xl border border-orange-400/30 bg-orange-400/10 px-4 py-2 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20"
+                      >
+                        Download JSON report
+                      </button>
+                    </div>
+
                     <div className="grid gap-6 lg:grid-cols-2">
                       <ChartCard title="Nombre de valeurs manquantes par colonne">
                         <ResponsiveContainer width="100%" height={260}>
@@ -877,6 +1010,33 @@ function ChartCard({
   );
 }
 
+function ApiStatusBadge({ status }: { status: ApiStatus }) {
+  if (status === "checking") {
+    return (
+      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm text-slate-300">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        API waking up
+      </div>
+    );
+  }
+
+  if (status === "ready") {
+    return (
+      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-300">
+        <CheckCircle2 className="h-4 w-4" />
+        API ready
+      </div>
+    );
+  }
+
+  return (
+    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
+      <AlertTriangle className="h-4 w-4" />
+      API unavailable
+    </div>
+  );
+}
+
 function formatColumnType(dtype?: string | null) {
   const normalizedDtype = String(dtype ?? "unknown").toLowerCase();
 
@@ -912,29 +1072,7 @@ function formatColumnType(dtype?: string | null) {
   return "Other columns";
 }
 
-function ApiStatusBadge({ status }: { status: ApiStatus }) {
-  if (status === "checking") {
-    return (
-      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm text-slate-300">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        API waking up
-      </div>
-    );
-  }
-
-  if (status === "ready") {
-    return (
-      <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-300">
-        <CheckCircle2 className="h-4 w-4" />
-        API ready
-      </div>
-    );
-  }
-
-  return (
-    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
-      <AlertTriangle className="h-4 w-4" />
-      API unavailable
-    </div>
-  );
+function isExcelFile(filename: string) {
+  const lowerFilename = filename.toLowerCase();
+  return lowerFilename.endsWith(".xlsx") || lowerFilename.endsWith(".xls");
 }
