@@ -1,7 +1,8 @@
 "use client";
-import { postFormData } from "@/lib/api";
 
+import { postFormData } from "@/lib/api";
 import { useState } from "react";
+import { useDropzone } from "react-dropzone";
 import {
   Upload,
   AlertTriangle,
@@ -9,6 +10,8 @@ import {
   Sparkles,
   BarChart3,
   Loader2,
+  FileSpreadsheet,
+  X,
 } from "lucide-react";
 import {
   Bar,
@@ -112,6 +115,36 @@ export default function Home() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function resetResults() {
+    setPreview(null);
+    setAnalysis(null);
+    setError(null);
+  }
+
+  function handleFileSelection(selectedFile: File | null) {
+    setFile(selectedFile);
+    resetResults();
+  }
+
+  const { getRootProps, getInputProps, isDragActive, isDragReject } =
+    useDropzone({
+      accept: {
+        "text/csv": [".csv"],
+        "application/vnd.ms-excel": [".xls"],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+          ".xlsx",
+        ],
+      },
+      maxFiles: 1,
+      multiple: false,
+      onDrop: (acceptedFiles) => {
+        handleFileSelection(acceptedFiles[0] ?? null);
+      },
+      onDropRejected: () => {
+        setError("Format non supporté. Utilise un fichier CSV, XLS ou XLSX.");
+      },
+    });
+
   function buildFormData() {
     if (!file) {
       throw new Error("Ajoute un fichier avant de lancer l’analyse.");
@@ -169,6 +202,8 @@ export default function Home() {
     ? Object.keys(preview.preview_table[0])
     : [];
 
+  const isBusy = previewLoading || analysisLoading;
+
   return (
     <main className="min-h-screen bg-[#090909] text-neutral-100">
       <section className="mx-auto flex max-w-7xl flex-col gap-10 px-6 py-10">
@@ -193,39 +228,84 @@ export default function Home() {
           <aside className="h-fit rounded-2xl border border-white/10 bg-white/[0.03] p-6 shadow-2xl">
             <h2 className="text-xl font-medium">Dataset upload</h2>
             <p className="mt-2 text-sm text-slate-400">
-              Utilise un fichier de démonstration ou ton propre dataset.
+              Glisse-dépose un fichier ou utilise le sélecteur classique.
             </p>
 
-            <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/60 p-8 text-center transition hover:border-orange-400/60 hover:bg-orange-400/5">
+            <div
+              {...getRootProps()}
+              className={`mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-8 text-center transition ${
+                isDragReject
+                  ? "border-red-400 bg-red-400/10"
+                  : isDragActive
+                  ? "border-orange-400 bg-orange-400/10"
+                  : "border-slate-700 bg-slate-950/60 hover:border-orange-400/60 hover:bg-orange-400/5"
+              }`}
+            >
+              <input {...getInputProps()} />
+
               <Upload className="mb-3 h-8 w-8 text-orange-300" />
+
               <span className="text-sm font-medium">
-                {file ? file.name : "Choisir un fichier CSV / Excel"}
+                {file
+                  ? file.name
+                  : isDragActive
+                  ? "Dépose le fichier ici"
+                  : "Drag & drop ou clique pour upload"}
               </span>
+
               <span className="mt-1 text-xs text-slate-500">
                 CSV, XLSX ou XLS
               </span>
-              <input
-                type="file"
-                className="hidden"
-                accept=".csv,.xlsx,.xls"
-                onChange={(event) => {
-                  setFile(event.target.files?.[0] ?? null);
-                  setPreview(null);
-                  setAnalysis(null);
-                  setError(null);
-                }}
-              />
-            </label>
+            </div>
+
+            {file && (
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <FileSpreadsheet className="h-5 w-5 shrink-0 text-orange-300" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-100">
+                      {file.name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {(file.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleFileSelection(null)}
+                  className="rounded-full border border-slate-700 p-2 text-slate-400 transition hover:border-red-400 hover:text-red-300"
+                  aria-label="Remove selected file"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
 
             <div className="mt-6 grid gap-4">
-              <InputField label="Séparateur CSV" value={separator} onChange={setSeparator} />
-              <InputField label="Encoding" value={encoding} onChange={setEncoding} />
+              <InputField
+                label="Séparateur CSV"
+                value={separator}
+                onChange={setSeparator}
+              />
+
+              <InputField
+                label="Encoding"
+                value={encoding}
+                onChange={setEncoding}
+              />
+
               <div>
                 <label className="text-sm text-slate-300">Skip rows</label>
                 <input
                   type="number"
+                  min={0}
                   value={skiprows}
-                  onChange={(event) => setSkiprows(Number(event.target.value))}
+                  onChange={(event) => {
+                    setSkiprows(Number(event.target.value));
+                    resetResults();
+                  }}
                   className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-orange-400"
                 />
               </div>
@@ -233,7 +313,7 @@ export default function Home() {
 
             <button
               onClick={handlePreview}
-              disabled={previewLoading}
+              disabled={previewLoading || !file}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-400 px-5 py-3 font-medium text-slate-950 transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {previewLoading && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -262,18 +342,47 @@ export default function Home() {
 
           <section className="flex flex-col gap-6">
             {!preview && (
-              <div className="flex min-h-[420px] items-center justify-center rounded-3xl border border-slate-800 bg-slate-900/40 p-10 text-center text-slate-500">
-                Les résultats apparaîtront ici après preview.
+              <div className="flex min-h-[420px] items-center justify-center rounded-3xl border border-slate-800 bg-slate-900/40 p-10 text-center">
+                <div className="max-w-md">
+                  {isBusy ? (
+                    <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-orange-300" />
+                  ) : (
+                    <FileSpreadsheet className="mx-auto mb-4 h-10 w-10 text-slate-600" />
+                  )}
+
+                  <p className="text-lg font-medium text-slate-300">
+                    {isBusy
+                      ? "Analyse du dataset en cours..."
+                      : "Aucun dataset analysé pour le moment"}
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Ajoute un fichier CSV ou Excel, vérifie les paramètres de
+                    lecture, puis lance la prévisualisation.
+                  </p>
+                </div>
               </div>
             )}
 
             {preview && (
               <>
                 <div className="grid gap-4 md:grid-cols-4">
-                  <MetricCard label="Quality score" value={`${preview.quality_score}/100`} />
-                  <MetricCard label="Rows" value={String(preview.dataset_info.rows)} />
-                  <MetricCard label="Columns" value={String(preview.dataset_info.columns)} />
-                  <MetricCard label="Missing cells" value={String(preview.dataset_info.missing_cells)} />
+                  <MetricCard
+                    label="Quality score"
+                    value={`${preview.quality_score}/100`}
+                  />
+                  <MetricCard
+                    label="Rows"
+                    value={String(preview.dataset_info.rows)}
+                  />
+                  <MetricCard
+                    label="Columns"
+                    value={String(preview.dataset_info.columns)}
+                  />
+                  <MetricCard
+                    label="Missing cells"
+                    value={String(preview.dataset_info.missing_cells)}
+                  />
                 </div>
 
                 <Panel title="Diagnostic rapide">
@@ -288,9 +397,14 @@ export default function Home() {
                   <Panel title="Actions recommandées" accent>
                     <div className="grid gap-3">
                       {preview.recommended_actions.map((action) => (
-                        <div key={action.label} className="rounded-2xl bg-slate-950/70 p-4">
+                        <div
+                          key={action.label}
+                          className="rounded-2xl bg-slate-950/70 p-4"
+                        >
                           <p className="font-medium">{action.label}</p>
-                          <p className="mt-1 text-sm text-slate-300">{action.reason}</p>
+                          <p className="mt-1 text-sm text-slate-300">
+                            {action.reason}
+                          </p>
                           <p className="mt-2 text-sm text-orange-300">
                             {action.parameter}: {String(action.current_value)} →{" "}
                             {String(action.recommended_value)}
@@ -306,8 +420,13 @@ export default function Home() {
                     <div className="grid gap-6 lg:grid-cols-2">
                       <ChartCard title="Valeurs manquantes par colonne">
                         <ResponsiveContainer width="100%" height={260}>
-                          <BarChart data={analysis.chart_data.missing_values_by_column}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                          <BarChart
+                            data={analysis.chart_data.missing_values_by_column}
+                          >
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              stroke="#1e293b"
+                            />
                             <XAxis dataKey="column" stroke="#94a3b8" />
                             <YAxis stroke="#94a3b8" />
                             <Tooltip
@@ -317,7 +436,11 @@ export default function Home() {
                                 borderRadius: "12px",
                               }}
                             />
-                            <Bar dataKey="missing_percent" fill="#22d3ee" radius={[8, 8, 0, 0]} />
+                            <Bar
+                              dataKey="missing_percent"
+                              fill="#fb923c"
+                              radius={[8, 8, 0, 0]}
+                            />
                           </BarChart>
                         </ResponsiveContainer>
                       </ChartCard>
@@ -326,18 +449,29 @@ export default function Home() {
                         <ResponsiveContainer width="100%" height={260}>
                           <PieChart>
                             <Pie
-                              data={analysis.chart_data.column_types_distribution}
+                              data={
+                                analysis.chart_data.column_types_distribution
+                              }
                               dataKey="count"
                               nameKey="dtype"
                               outerRadius={95}
                               label
                             >
-                              {analysis.chart_data.column_types_distribution.map((_, index) => (
-                                <Cell
-                                  key={index}
-                                  fill={["#22d3ee", "#818cf8", "#34d399", "#fbbf24"][index % 4]}
-                                />
-                              ))}
+                              {analysis.chart_data.column_types_distribution.map(
+                                (_, index) => (
+                                  <Cell
+                                    key={index}
+                                    fill={
+                                      [
+                                        "#fb923c",
+                                        "#f97316",
+                                        "#facc15",
+                                        "#a3e635",
+                                      ][index % 4]
+                                    }
+                                  />
+                                )
+                              )}
                             </Pie>
                             <Tooltip
                               contentStyle={{
@@ -361,7 +495,10 @@ export default function Home() {
                             </p>
                           ) : (
                             analysis.issues.map((issue) => (
-                              <div key={issue.message} className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+                              <div
+                                key={issue.message}
+                                className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100"
+                              >
                                 {issue.message}
                               </div>
                             ))
@@ -378,7 +515,10 @@ export default function Home() {
                             </p>
                           ) : (
                             analysis.recommendations.map((recommendation) => (
-                              <div key={recommendation.label} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm">
+                              <div
+                                key={recommendation.label}
+                                className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm"
+                              >
                                 <p className="font-medium text-slate-100">
                                   {recommendation.label}
                                 </p>
@@ -407,7 +547,10 @@ export default function Home() {
                         <thead className="bg-slate-950">
                           <tr>
                             {columns.map((column) => (
-                              <th key={column} className="whitespace-nowrap px-4 py-3 text-left font-medium text-slate-300">
+                              <th
+                                key={column}
+                                className="whitespace-nowrap px-4 py-3 text-left font-medium text-slate-300"
+                              >
                                 {column}
                               </th>
                             ))}
@@ -415,9 +558,15 @@ export default function Home() {
                         </thead>
                         <tbody>
                           {preview.preview_table.map((row, rowIndex) => (
-                            <tr key={rowIndex} className="border-t border-slate-800">
+                            <tr
+                              key={rowIndex}
+                              className="border-t border-slate-800"
+                            >
                               {columns.map((column) => (
-                                <td key={column} className="whitespace-nowrap px-4 py-3 text-slate-400">
+                                <td
+                                  key={column}
+                                  className="whitespace-nowrap px-4 py-3 text-slate-400"
+                                >
                                   {String(row[column] ?? "")}
                                 </td>
                               ))}
@@ -451,7 +600,9 @@ function InputField({
       <label className="text-sm text-slate-300">{label}</label>
       <input
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          onChange(event.target.value);
+        }}
         className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-orange-400"
       />
     </div>
@@ -484,7 +635,11 @@ function Panel({
           : "rounded-2xl border border-white/10 bg-white/[0.03] p-6"
       }
     >
-      <h2 className={accent ? "text-xl font-medium text-orange-100" : "text-xl font-medium"}>
+      <h2
+        className={
+          accent ? "text-xl font-medium text-orange-100" : "text-xl font-medium"
+        }
+      >
         {title}
       </h2>
       <div className="mt-4">{children}</div>
