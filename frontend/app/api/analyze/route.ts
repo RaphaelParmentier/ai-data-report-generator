@@ -4,7 +4,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
 
-    const response = await fetch(`${BACKEND_URL}/preview`, {
+    const response = await fetch(`${BACKEND_URL}/analyze`, {
       method: "POST",
       body: formData,
     });
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       return Response.json(
         {
           detail:
-            text || "Backend returned a non-JSON response during preview.",
+            text || "Backend returned a non-JSON response during analysis.",
         },
         { status: response.status }
       );
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
         detail:
           error instanceof Error
             ? error.message
-            : "Unknown error while calling preview API.",
+            : "Unknown error while calling analysis API.",
       },
       { status: 500 }
     );
