@@ -21,9 +21,6 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 
 type AnalyzeApiResponse = {
@@ -126,45 +123,53 @@ export default function Home() {
     resetResults();
   }
 
-  async function loadSampleDataset() {
-  setError(null);
-  setPreview(null);
-  setAnalysis(null);
-  setPreviewLoading(true);
-
-  try {
-    const response = await fetch("/samples/customer_quality_sample.csv");
-
-    if (!response.ok) {
-      throw new Error("Impossible de charger le dataset d'exemple.");
-    }
-
-    const blob = await response.blob();
-
-    const sampleFile = new File([blob], "customer_quality_sample.csv", {
-      type: "text/csv",
-    });
-
-    setFile(sampleFile);
-    setSeparator(";");
+  function resetWorkspace() {
+    setFile(null);
+    setSeparator(",");
     setEncoding("utf-8");
     setSkiprows(0);
-
-    const formData = new FormData();
-    formData.append("file", sampleFile);
-    formData.append("separator", ";");
-    formData.append("encoding", "utf-8");
-    formData.append("skiprows", "0");
-
-    const data = await postFormData<PreviewResponse>("/preview", formData);
-
-    setPreview(data);
-  } catch (err) {
-    setError(err instanceof Error ? err.message : "Erreur inconnue.");
-  } finally {
-    setPreviewLoading(false);
+    resetResults();
   }
-}
+
+  async function loadSampleDataset() {
+    setError(null);
+    setPreview(null);
+    setAnalysis(null);
+    setPreviewLoading(true);
+
+    try {
+      const response = await fetch("/samples/customer_quality_sample.csv");
+
+      if (!response.ok) {
+        throw new Error("Impossible de charger le dataset d'exemple.");
+      }
+
+      const blob = await response.blob();
+
+      const sampleFile = new File([blob], "customer_quality_sample.csv", {
+        type: "text/csv",
+      });
+
+      setFile(sampleFile);
+      setSeparator(";");
+      setEncoding("utf-8");
+      setSkiprows(0);
+
+      const formData = new FormData();
+      formData.append("file", sampleFile);
+      formData.append("separator", ";");
+      formData.append("encoding", "utf-8");
+      formData.append("skiprows", "0");
+
+      const data = await postFormData<PreviewResponse>("/preview", formData);
+
+      setPreview(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur inconnue.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } =
     useDropzone({
@@ -251,7 +256,6 @@ export default function Home() {
       )
     );
 
-
   const isBusy = previewLoading || analysisLoading;
 
   return (
@@ -281,40 +285,42 @@ export default function Home() {
               Glisse-dépose un fichier ou utilise le sélecteur classique.
             </p>
 
-          <div
-            {...getRootProps()}
-            className={`mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-8 text-center transition ${
-              isDragReject
-                ? "border-red-400 bg-red-400/10"
-                : isDragActive
-                ? "border-orange-400 bg-orange-400/10"
-                : "border-slate-700 bg-slate-950/60 hover:border-orange-400/60 hover:bg-orange-400/5"
-            }`}
-          >
-            <input {...getInputProps()} />
+            <div
+              {...getRootProps()}
+              className={`mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-8 text-center transition ${
+                isDragReject
+                  ? "border-red-400 bg-red-400/10"
+                  : isDragActive
+                    ? "border-orange-400 bg-orange-400/10"
+                    : "border-slate-700 bg-slate-950/60 hover:border-orange-400/60 hover:bg-orange-400/5"
+              }`}
+            >
+              <input {...getInputProps()} />
 
-            <Upload className="mb-3 h-8 w-8 text-orange-300" />
+              <Upload className="mb-3 h-8 w-8 text-orange-300" />
 
-            <span className="text-sm font-medium">
-              {file
-                ? file.name
-                : isDragActive
-                ? "Dépose le fichier ici"
-                : "Drag & drop ou clique pour upload"}
-            </span>
+              <span className="text-sm font-medium">
+                {file
+                  ? file.name
+                  : isDragActive
+                    ? "Dépose le fichier ici"
+                    : "Drag & drop ou clique pour upload"}
+              </span>
 
-            <span className="mt-1 text-xs text-slate-500">CSV, XLSX ou XLS</span>
-          </div>
+              <span className="mt-1 text-xs text-slate-500">
+                CSV, XLSX ou XLS
+              </span>
+            </div>
 
-          <button
-            type="button"
-            onClick={loadSampleDataset}
-            disabled={previewLoading}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-orange-400/30 bg-orange-400/10 px-5 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {previewLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {previewLoading ? "Loading sample..." : "Use sample dataset"}
-          </button>
+            <button
+              type="button"
+              onClick={loadSampleDataset}
+              disabled={previewLoading}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-orange-400/30 bg-orange-400/10 px-5 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {previewLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {previewLoading ? "Loading sample..." : "Use sample dataset"}
+            </button>
 
             {file && (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
@@ -373,7 +379,9 @@ export default function Home() {
                 <input
                   value={separator === "\t" ? "\\t" : separator}
                   onChange={(event) => {
-                    const value = event.target.value === "\\t" ? "\t" : event.target.value;
+                    const value =
+                      event.target.value === "\\t" ? "\t" : event.target.value;
+
                     setSeparator(value);
                     resetResults();
                   }}
@@ -384,7 +392,10 @@ export default function Home() {
               <InputField
                 label="Encoding"
                 value={encoding}
-                onChange={setEncoding}
+                onChange={(value) => {
+                  setEncoding(value);
+                  resetResults();
+                }}
               />
 
               <div>
@@ -408,7 +419,9 @@ export default function Home() {
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-orange-400 px-5 py-3 font-medium text-slate-950 transition hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {previewLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {previewLoading ? "Prévisualisation..." : "Preview dataset"}
+              {previewLoading
+                ? "API waking up... loading dataset"
+                : "Preview dataset"}
             </button>
 
             <button
@@ -421,7 +434,23 @@ export default function Home() {
               ) : (
                 <BarChart3 className="h-4 w-4" />
               )}
-              {analysisLoading ? "Analyse..." : "Run full analysis"}
+              {analysisLoading ? "Running full analysis..." : "Run full analysis"}
+            </button>
+
+            {(previewLoading || analysisLoading) && (
+              <div className="mt-4 rounded-xl border border-orange-400/20 bg-orange-400/10 p-4 text-sm text-orange-100">
+                The hosted API may take up to 60 seconds to wake up on the free
+                tier. This is expected on the first request.
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={resetWorkspace}
+              disabled={isBusy && !error}
+              className="mt-3 w-full rounded-xl border border-slate-700 px-5 py-3 text-sm font-medium text-slate-300 transition hover:border-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reset workspace
             </button>
 
             {error && (
@@ -478,15 +507,18 @@ export default function Home() {
 
                 {isLikelyWrongSeparator && (
                   <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
-                    <p className="font-medium">Possible problème de séparateur CSV détecté.</p>
+                    <p className="font-medium">
+                      Possible problème de séparateur CSV détecté.
+                    </p>
                     <p className="mt-1 text-amber-100/80">
-                      Le fichier semble avoir été lu comme une seule colonne. Essaie un autre
-                      séparateur, par exemple <span className="font-semibold">Semicolon</span>{" "}
-                      ou <span className="font-semibold">Comma</span>, puis relance la preview.
+                      Le fichier semble avoir été lu comme une seule colonne.
+                      Essaie un autre séparateur, par exemple{" "}
+                      <span className="font-semibold">Semicolon</span> ou{" "}
+                      <span className="font-semibold">Comma</span>, puis relance
+                      la preview.
                     </p>
                   </div>
                 )}
-
 
                 <Panel title="Diagnostic rapide">
                   <div className="grid gap-3">
@@ -521,7 +553,7 @@ export default function Home() {
                 {analysis && (
                   <Panel title="Analyse qualité visuelle">
                     <div className="grid gap-6 lg:grid-cols-2">
-                      <ChartCard title="Pourcentage de valeurs manquantes par colonne">
+                      <ChartCard title="Nombre de valeurs manquantes par colonne">
                         <ResponsiveContainer width="100%" height={260}>
                           <BarChart
                             data={analysis.chart_data.missing_values_by_column}
@@ -531,57 +563,51 @@ export default function Home() {
                               stroke="#1e293b"
                             />
                             <XAxis dataKey="column" stroke="#94a3b8" />
-                            <YAxis
-                              stroke="#94a3b8"
-                              tickFormatter={(value) => `${value}%`}
-                            />
+                            <YAxis stroke="#94a3b8" allowDecimals={false} />
                             <Tooltip
-                              formatter={(value: number) => [`${value}%`, "Missing values"]}
+                              formatter={(value) => [value, "Missing values"]}
                               contentStyle={{
                                 background: "#020617",
                                 border: "1px solid #334155",
                                 borderRadius: "12px",
                               }}
                             />
-                          <Bar
-                            dataKey="missing_count"
-                            fill="#fb923c"
-                            radius={[8, 8, 0, 0]}
-                          />
+                            <Bar
+                              dataKey="missing_count"
+                              fill="#fb923c"
+                              radius={[8, 8, 0, 0]}
+                            />
                           </BarChart>
                         </ResponsiveContainer>
                       </ChartCard>
 
                       <ChartCard title="Distribution des types de colonnes">
                         <div className="grid gap-3">
-                          {analysis.chart_data.column_types_distribution.map((item, index) => {
-                            const rawType =
-                              item.dtype ??
-                              (item as { type?: string }).type ??
-                              (item as { column_type?: string }).column_type ??
-                              "unknown";
+                          {analysis.chart_data.column_types_distribution.map(
+                            (item, index) => {
+                              const rawType = item.dtype ?? "unknown";
 
-                            return (
-                              <div
-                                key={`${rawType}-${index}`}
-                                className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3"
-                              >
-                                <div>
-                                  <p className="font-medium text-slate-100">
-                                    {formatColumnType(rawType)}
-                                  </p>
+                              return (
+                                <div
+                                  key={`${rawType}-${index}`}
+                                  className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3"
+                                >
+                                  <div>
+                                    <p className="font-medium text-slate-100">
+                                      {formatColumnType(rawType)}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                      Raw dtype: {rawType}
+                                    </p>
+                                  </div>
 
-                                  <p className="text-xs text-slate-500">
-                                    Raw dtype: {rawType}
-                                  </p>
+                                  <div className="rounded-xl bg-orange-400/10 px-3 py-2 text-lg font-semibold text-orange-200">
+                                    {item.count}
+                                  </div>
                                 </div>
-
-                                <div className="rounded-xl bg-orange-400/10 px-3 py-2 text-lg font-semibold text-orange-200">
-                                  {item.count}
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            }
+                          )}
                         </div>
                       </ChartCard>
                     </div>
@@ -701,9 +727,7 @@ function InputField({
       <label className="text-sm text-slate-300">{label}</label>
       <input
         value={value}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
+        onChange={(event) => onChange(event.target.value)}
         className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none focus:border-orange-400"
       />
     </div>
@@ -759,6 +783,7 @@ function StatusCard({ item }: { item: UserReportItem }) {
         ) : (
           <AlertTriangle className="mt-1 h-5 w-5 text-amber-400" />
         )}
+
         <div>
           <p className="font-medium">{item.question}</p>
           <p className="mt-1 text-sm text-slate-300">{item.answer}</p>
@@ -812,6 +837,7 @@ function formatColumnType(dtype?: string | null) {
   if (
     normalizedDtype.includes("object") ||
     normalizedDtype.includes("string") ||
+    normalizedDtype.includes("str") ||
     normalizedDtype.includes("text")
   ) {
     return "Text columns";
