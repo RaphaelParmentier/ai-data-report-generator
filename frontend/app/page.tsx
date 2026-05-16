@@ -101,6 +101,9 @@ type AnalyzeResponse = {
 
 type ApiStatus = "checking" | "ready" | "error";
 
+const MAX_FILE_SIZE_MB = 5;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [separator, setSeparator] = useState(",");
@@ -142,6 +145,22 @@ export default function Home() {
   }, []);
 
   function handleFileSelection(selectedFile: File | null) {
+    if (!selectedFile) {
+      setFile(null);
+      resetResults();
+      return;
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+      setFile(null);
+      setPreview(null);
+      setAnalysis(null);
+      setError(
+        `Fichier trop volumineux. Taille maximale autorisée : ${MAX_FILE_SIZE_MB} MB.`
+      );
+      return;
+    }
+
     setFile(selectedFile);
     resetResults();
   }
@@ -204,11 +223,21 @@ export default function Home() {
         ],
       },
       maxFiles: 1,
+      maxSize: MAX_FILE_SIZE_BYTES,
       multiple: false,
       onDrop: (acceptedFiles) => {
         handleFileSelection(acceptedFiles[0] ?? null);
       },
-      onDropRejected: () => {
+      onDropRejected: (fileRejections) => {
+        const firstError = fileRejections[0]?.errors[0];
+
+        if (firstError?.code === "file-too-large") {
+          setError(
+            `Fichier trop volumineux. Taille maximale autorisée : ${MAX_FILE_SIZE_MB} MB.`
+          );
+          return;
+        }
+
         setError("Format non supporté. Utilise un fichier CSV, XLS ou XLSX.");
       },
     });
@@ -331,7 +360,7 @@ export default function Home() {
               </span>
 
               <span className="mt-1 text-xs text-slate-500">
-                CSV, XLSX ou XLS
+                CSV, XLSX ou XLS · max 5 MB
               </span>
             </div>
 
