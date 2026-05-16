@@ -281,42 +281,40 @@ export default function Home() {
               Glisse-dépose un fichier ou utilise le sélecteur classique.
             </p>
 
-            <div
-              {...getRootProps()}
-              className={`mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-8 text-center transition ${
-                isDragReject
-                  ? "border-red-400 bg-red-400/10"
-                  : isDragActive
-                  ? "border-orange-400 bg-orange-400/10"
-                  : "border-slate-700 bg-slate-950/60 hover:border-orange-400/60 hover:bg-orange-400/5"
-              }`}
-            >
-              <input {...getInputProps()} />
+          <div
+            {...getRootProps()}
+            className={`mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-8 text-center transition ${
+              isDragReject
+                ? "border-red-400 bg-red-400/10"
+                : isDragActive
+                ? "border-orange-400 bg-orange-400/10"
+                : "border-slate-700 bg-slate-950/60 hover:border-orange-400/60 hover:bg-orange-400/5"
+            }`}
+          >
+            <input {...getInputProps()} />
 
-              <Upload className="mb-3 h-8 w-8 text-orange-300" />
+            <Upload className="mb-3 h-8 w-8 text-orange-300" />
 
-              <span className="text-sm font-medium">
-                {file
-                  ? file.name
-                  : isDragActive
-                  ? "Dépose le fichier ici"
-                  : "Drag & drop ou clique pour upload"}
-              </span>
+            <span className="text-sm font-medium">
+              {file
+                ? file.name
+                : isDragActive
+                ? "Dépose le fichier ici"
+                : "Drag & drop ou clique pour upload"}
+            </span>
 
-              <span className="mt-1 text-xs text-slate-500">
-                CSV, XLSX ou XLS
-              </span>
-            </div>
+            <span className="mt-1 text-xs text-slate-500">CSV, XLSX ou XLS</span>
+          </div>
 
-              <button
-                type="button"
-                onClick={loadSampleDataset}
-                disabled={previewLoading}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-orange-400/30 bg-orange-400/10 px-5 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {previewLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {previewLoading ? "Loading sample..." : "Use sample dataset"}
-            </button>
+          <button
+            type="button"
+            onClick={loadSampleDataset}
+            disabled={previewLoading}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-orange-400/30 bg-orange-400/10 px-5 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {previewLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {previewLoading ? "Loading sample..." : "Use sample dataset"}
+          </button>
 
             {file && (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
