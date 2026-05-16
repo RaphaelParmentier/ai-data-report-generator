@@ -128,6 +128,9 @@ export default function Home() {
 
   async function loadSampleDataset() {
   setError(null);
+  setPreview(null);
+  setAnalysis(null);
+  setPreviewLoading(true);
 
   try {
     const response = await fetch("/samples/customer_quality_sample.csv");
@@ -138,18 +141,28 @@ export default function Home() {
 
     const blob = await response.blob();
 
-    const sampleFile = new File(
-      [blob],
-      "customer_quality_sample.csv",
-      { type: "text/csv" }
-    );
+    const sampleFile = new File([blob], "customer_quality_sample.csv", {
+      type: "text/csv",
+    });
 
+    setFile(sampleFile);
     setSeparator(";");
     setEncoding("utf-8");
     setSkiprows(0);
-    handleFileSelection(sampleFile);
+
+    const formData = new FormData();
+    formData.append("file", sampleFile);
+    formData.append("separator", ";");
+    formData.append("encoding", "utf-8");
+    formData.append("skiprows", "0");
+
+    const data = await postFormData<PreviewResponse>("/preview", formData);
+
+    setPreview(data);
   } catch (err) {
     setError(err instanceof Error ? err.message : "Erreur inconnue.");
+  } finally {
+    setPreviewLoading(false);
   }
 }
 
@@ -285,12 +298,14 @@ export default function Home() {
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={loadSampleDataset}
-              className="mt-3 w-full rounded-xl border border-orange-400/30 bg-orange-400/10 px-5 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20"
-            >
-              Use sample dataset
+              <button
+                type="button"
+                onClick={loadSampleDataset}
+                disabled={previewLoading}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-orange-400/30 bg-orange-400/10 px-5 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {previewLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {previewLoading ? "Loading sample..." : "Use sample dataset"}
             </button>
 
             {file && (
