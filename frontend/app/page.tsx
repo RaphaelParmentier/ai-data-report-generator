@@ -173,14 +173,14 @@ export default function Home() {
     resetResults();
   }
 
-  async function loadSampleDataset() {
+  async function loadSampleDataset(samplePath: string) {
     setError(null);
     setPreview(null);
     setAnalysis(null);
     setPreviewLoading(true);
 
     try {
-      const response = await fetch("/samples/customer_quality_sample.csv");
+      const response = await fetch(samplePath);
 
       if (!response.ok) {
         throw new Error("Impossible de charger le dataset d'exemple.");
@@ -188,7 +188,7 @@ export default function Home() {
 
       const blob = await response.blob();
 
-      const sampleFile = new File([blob], "customer_quality_sample.csv", {
+      const sampleFile = new File([blob], samplePath.split("/").pop() ?? "sample.csv", {
         type: "text/csv",
       });
 
@@ -364,15 +364,29 @@ export default function Home() {
               </span>
             </div>
 
+            <div className="mt-3 grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={loadSampleDataset}
+              onClick={() =>
+                loadSampleDataset("/samples/customer_clean_sample.csv")
+              }
               disabled={previewLoading}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-orange-400/30 bg-orange-400/10 px-5 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex items-center justify-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm font-medium text-emerald-200 transition hover:border-emerald-300 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {previewLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {previewLoading ? "Loading sample..." : "Use sample dataset"}
+              Clean sample
             </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                loadSampleDataset("/samples/customer_messy_sample.csv")
+              }
+              disabled={previewLoading}
+              className="flex items-center justify-center gap-2 rounded-xl border border-orange-400/30 bg-orange-400/10 px-4 py-3 text-sm font-medium text-orange-200 transition hover:border-orange-300 hover:bg-orange-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Messy sample
+            </button>
+          </div>
 
             {file && (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
