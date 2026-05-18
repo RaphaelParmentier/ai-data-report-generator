@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any
 
-from google import genai
+import google.genai as genai
 
 
 def build_ai_audit_payload(analysis: dict[str, Any]) -> dict[str, Any]:
@@ -26,6 +27,25 @@ def build_ai_audit_payload(analysis: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def extract_json_from_model_response(raw_text: str) -> dict[str, Any]:
+    """Parse JSON even if the model wraps it in markdown fences."""
+    cleaned = raw_text.strip()
+
+    cleaned = re.sub(r"^```json\s*", "", cleaned)
+    cleaned = re.sub(r"^```\s*", "", cleaned)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+
+        if json_match:
+            return json.loads(json_match.group(0))
+
+        raise
+
+
 def generate_ai_insights(analysis: dict[str, Any]) -> dict[str, Any]:
     api_key = os.getenv("GEMINI_API_KEY")
 
@@ -37,22 +57,41 @@ def generate_ai_insights(analysis: dict[str, Any]) -> dict[str, Any]:
     compact_payload = build_ai_audit_payload(analysis)
 
     prompt = f"""
-You are a senior data quality auditor.
+Tu es un auditeur senior en qualité des données.
 
-You receive a deterministic data quality audit as JSON.
-Do not invent metrics. Use only the provided audit.
-Return ONLY valid JSON with this exact schema:
+Tu reçois un audit déterministe produit par un moteur Python/Pandas.
+Tu ne dois inventer aucune métrique.
+Tu dois utiliser uniquement les informations présentes dans le JSON.
+Ta réponse doit être en français professionnel, clair et exploitable.
+Les champs JSON doivent rester en anglais.
+Les valeurs de risk_level doivent rester exactement : low, medium ou high.
+
+Retourne UNIQUEMENT un objet JSON valide.
+N'ajoute pas de markdown.
+N'ajoute pas de bloc ```json.
+N'ajoute aucun commentaire hors JSON.
+
+Schéma obligatoire :
 
 {{
-  "executive_summary": "string",
+  "executive_summary": "Résumé exécutif en français, 3 à 5 phrases.",
   "risk_level": "low | medium | high",
-  "business_impact": "string",
-  "key_findings": ["string"],
-  "priority_actions": ["string"],
-  "technical_notes": ["string"]
+  "business_impact": "Impact métier en français, concret et orienté décision.",
+  "key_findings": [
+    "Constat clé en français",
+    "Constat clé en français"
+  ],
+  "priority_actions": [
+    "Action prioritaire en français",
+    "Action prioritaire en français"
+  ],
+  "technical_notes": [
+    "Note technique courte en français",
+    "Note technique courte en français"
+  ]
 }}
 
-Audit JSON:
+Audit JSON :
 {json.dumps(compact_payload, ensure_ascii=False)}
 """
 
@@ -64,15 +103,32 @@ Audit JSON:
     raw_text = response.text or ""
 
     try:
-        return json.loads(raw_text)
-    except json.JSONDecodeError:
+        parsed = extract_json_from_model_response(raw_text)
+    except Exception:
         return {
-            "executive_summary": raw_text,
+            "executive_summary": (
+                "L’analyse IA a été générée, mais la réponse du modèle n’a pas "
+                "pu être structurée correctement. Les diagnostics déterministes "
+                "restent disponibles et fiables."
+            ),
             "risk_level": "medium",
-            "business_impact": "The model returned an unstructured response.",
+            "business_impact": (
+                "La couche IA n’a pas pu être interprétée automatiquement. "
+                "Utilisez les issues et recommandations déterministes pour guider "
+                "les actions de nettoyage."
+            ),
             "key_findings": [],
             "priority_actions": [],
             "technical_notes": [
-                "AI response could not be parsed as JSON.",
+                "La réponse brute du modèle n’était pas un JSON exploitable.",
             ],
         }
+
+    return {
+        "executive_summary": str(parsed.get("executive_summary", "")),
+        "risk_level": parsed.get("risk_level", "medium"),
+        "business_impact": str(parsed.get("business_impact", "")),
+        "key_findings": list(parsed.get("key_findings", [])),
+        "priority_actions": list(parsed.get("priority_actions", [])),
+        "technical_notes": list(parsed.get("technical_notes", [])),
+    }
