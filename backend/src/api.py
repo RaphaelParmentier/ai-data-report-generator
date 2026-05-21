@@ -1,8 +1,6 @@
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.ai_insights import generate_ai_insights
-
 from src.data_loader import (
     get_available_excel_sheets,
     get_file_type,
@@ -13,14 +11,18 @@ from src.data_quality import run_data_quality_checks
 
 
 app = FastAPI(
-    title="AI Data Report Generator API",
+    title="Dataset Quality Auditor API",
     version="0.3.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://audit.raphaelparmentier.dev",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -38,34 +40,20 @@ def get_valid_filename(file: UploadFile) -> str:
     return filename
 
 
-def load_uploaded_dataset(
-    content: bytes,
-    filename: str,
-    sheet_name: str | None,
-    skiprows: int,
-    separator: str,
-    encoding: str,
-):
-    return load_dataset(
-        content=content,
-        filename=filename,
-        sheet_name=sheet_name,
-        skiprows=skiprows,
-        separator=separator,
-        encoding=encoding,
-    )
-
-
 @app.get("/")
 def healthcheck():
     return {
         "status": "ok",
-        "service": "AI Data Report Generator API",
-        "version": app.version,
+        "service": "Dataset Quality Auditor API",
     }
 
 
-@app.post("/sheets", tags=["Dataset Inspection"])
+@app.post(
+    "/sheets",
+    summary="List Excel sheets",
+    description="Return available sheet names from an uploaded Excel file.",
+    tags=["Dataset Inspection"],
+)
 async def list_excel_sheets(file: UploadFile = File(...)):
     content = await file.read()
     filename = get_valid_filename(file)
@@ -89,7 +77,15 @@ async def list_excel_sheets(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@app.post("/preview", tags=["Dataset Inspection"])
+@app.post(
+    "/preview",
+    summary="Preview dataset structure",
+    description=(
+        "Upload a CSV or Excel file to inspect its structure, "
+        "detect potential issues and receive loading recommendations."
+    ),
+    tags=["Dataset Inspection"],
+)
 async def preview_file(
     file: UploadFile = File(...),
     sheet_name: str | None = Form(default=None),
@@ -101,7 +97,7 @@ async def preview_file(
     filename = get_valid_filename(file)
 
     try:
-        df = load_uploaded_dataset(
+        df = load_dataset(
             content=content,
             filename=filename,
             sheet_name=sheet_name,
@@ -123,7 +119,15 @@ async def preview_file(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@app.post("/analyze", tags=["Dataset Analysis"])
+@app.post(
+    "/analyze",
+    summary="Run dataset quality analysis",
+    description=(
+        "Run a complete data quality analysis including missing values, "
+        "duplicates, column types and quality scoring."
+    ),
+    tags=["Dataset Analysis"],
+)
 async def analyze_dataset(
     file: UploadFile = File(...),
     sheet_name: str | None = Form(default=None),
@@ -135,7 +139,7 @@ async def analyze_dataset(
     filename = get_valid_filename(file)
 
     try:
-        df = load_uploaded_dataset(
+        df = load_dataset(
             content=content,
             filename=filename,
             sheet_name=sheet_name,
@@ -144,42 +148,7 @@ async def analyze_dataset(
             encoding=encoding,
         )
 
-        quality_report = run_data_quality_checks(df)
-
-        return {
-            "filename": filename,
-            "sheet_name": sheet_name,
-            "loading_options": {
-                "separator": separator,
-                "encoding": encoding,
-                "skiprows": skiprows,
-            },
-            "analysis": quality_report,
-        }
+        return run_data_quality_checks(df)
 
     except Exception as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    
-@app.post("/ai-insights", tags=["AI Insights"])
-async def ai_insights(payload: dict):
-    try:
-        analysis = payload.get("analysis")
-
-        if not analysis:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing analysis payload.",
-            )
-
-        insights = generate_ai_insights(analysis)
-
-        return {
-            "status": "ok",
-            "insights": insights,
-        }
-
-    except HTTPException:
-        raise
-
-    except Exception as error:
-        raise HTTPException(status_code=500, detail=str(error)) from error

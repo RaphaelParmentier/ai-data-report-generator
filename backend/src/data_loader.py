@@ -59,6 +59,7 @@ def load_dataset(
 
 
 def to_json_safe(value: Any) -> Any:
+    """Convert pandas/numpy values to JSON-safe values."""
     if pd.isna(value):
         return None
 
@@ -118,70 +119,70 @@ def preview_dataset(
 
         if column_missing_rate > 30:
             warnings.append(
-                f"La colonne '{column}' contient beaucoup de valeurs manquantes "
+                f"Column '{column}' has a high missing value rate "
                 f"({column_missing_rate}%)."
             )
 
         if unique_count == 1 and row_count > 0:
             warnings.append(
-                f"La colonne '{column}' contient une seule valeur distincte."
+                f"Column '{column}' contains only one distinct value."
             )
 
     empty_columns = [str(column) for column in df.columns if df[column].isna().all()]
 
     if empty_columns:
         warnings.append(
-            f"Colonnes entièrement vides détectées : {', '.join(empty_columns)}."
+            f"Fully empty columns detected: {', '.join(empty_columns)}."
         )
 
     if duplicated_rows > 0:
-        warnings.append(f"{duplicated_rows} lignes dupliquées détectées.")
+        warnings.append(f"{duplicated_rows} duplicate rows detected.")
 
     if column_count == 1 and filename.lower().endswith(".csv"):
         warnings.append(
-            "Une seule colonne détectée dans un fichier CSV. "
-            "Le séparateur est peut-être incorrect."
+            "Only one column was detected in this CSV file. "
+            "The separator may be incorrect."
         )
         suggestions.append(
-            "Essayez un autre séparateur, par exemple ';' au lieu de ','."
+            "Try another separator, for example ';' instead of ','."
         )
         recommended_actions.append(
             {
-                "label": "Changer le séparateur CSV",
+                "label": "Change CSV separator",
                 "parameter": "separator",
                 "current_value": separator,
                 "recommended_value": ";",
                 "reason": (
-                    "Une seule colonne a été détectée. "
-                    "Le fichier utilise probablement un autre séparateur."
+                    "Only one column was detected. "
+                    "The file probably uses a different separator."
                 ),
             }
         )
 
     if any(str(column).startswith("Unnamed") for column in df.columns):
         warnings.append(
-            "Certaines colonnes semblent ne pas avoir de nom explicite."
+            "Some columns appear to have no explicit name."
         )
         suggestions.append(
-            "Vérifiez si le fichier contient des lignes d'en-tête inutiles. "
-            "Essayez éventuellement skiprows=1 ou skiprows=2."
+            "Check whether the file contains extra header rows. "
+            "Try skiprows=1 or skiprows=2 if needed."
         )
         recommended_actions.append(
             {
-                "label": "Ignorer des lignes d'en-tête",
+                "label": "Skip extra header rows",
                 "parameter": "skiprows",
                 "current_value": skiprows,
                 "recommended_value": skiprows + 1,
                 "reason": (
-                    "Certaines colonnes semblent mal nommées ou générées automatiquement."
+                    "Some columns appear to be unnamed or automatically generated."
                 ),
             }
         )
 
     if row_count == 0:
-        warnings.append("Le fichier ne contient aucune ligne de données exploitable.")
+        warnings.append("The file does not contain any usable data rows.")
         suggestions.append(
-            "Vérifiez la feuille Excel sélectionnée, le séparateur CSV ou le paramètre skiprows."
+            "Check the selected Excel sheet, CSV separator or skiprows parameter."
         )
 
     quality_score = 100
@@ -201,10 +202,12 @@ def preview_dataset(
 
     if not warnings:
         global_status = "ok"
-        global_message = "Le fichier semble correctement chargé."
+        global_message = "The dataset appears to be loaded correctly."
     else:
         global_status = "warning"
-        global_message = "Le fichier est chargé, mais certains points doivent être vérifiés."
+        global_message = (
+            "The dataset was loaded, but some points require attention."
+        )
 
     preview_table = [
         {
@@ -216,49 +219,49 @@ def preview_dataset(
 
     user_report = [
         {
-            "question": "Le fichier est-il chargé correctement ?",
+            "question": "Was the dataset loaded successfully?",
             "answer": global_message,
             "status": global_status,
             "suggestion": (
                 None
                 if global_status == "ok"
-                else "Consultez les alertes et les actions recommandées."
+                else "Review the warnings and recommended actions below."
             ),
         },
         {
-            "question": "Combien de données ont été détectées ?",
-            "answer": f"{row_count} lignes et {column_count} colonnes.",
+            "question": "How much data was detected?",
+            "answer": f"{row_count} rows and {column_count} columns.",
             "status": "ok" if row_count > 0 and column_count > 0 else "error",
             "suggestion": None,
         },
         {
-            "question": "Quel est le score qualité du fichier ?",
+            "question": "What is the dataset quality score?",
             "answer": f"{quality_score}/100",
             "status": "ok" if quality_score >= 80 else "warning",
             "suggestion": (
                 None
                 if quality_score >= 80
-                else "Corrigez les alertes prioritaires avant de lancer une analyse complète."
+                else "Fix priority warnings before running a full analysis."
             ),
         },
         {
-            "question": "Les valeurs manquantes sont-elles problématiques ?",
-            "answer": f"{missing_cells} cellules manquantes ({missing_rate}%).",
+            "question": "Are missing values a concern?",
+            "answer": f"{missing_cells} missing cells ({missing_rate}%).",
             "status": "ok" if missing_rate < 5 else "warning",
             "suggestion": (
                 None
                 if missing_rate < 5
-                else "Inspectez les colonnes avec le plus de valeurs manquantes."
+                else "Review columns containing the highest percentage of missing values."
             ),
         },
         {
-            "question": "Y a-t-il des lignes dupliquées ?",
-            "answer": f"{duplicated_rows} lignes dupliquées détectées.",
+            "question": "Are duplicate rows present?",
+            "answer": f"{duplicated_rows} duplicate rows detected.",
             "status": "ok" if duplicated_rows == 0 else "warning",
             "suggestion": (
                 None
                 if duplicated_rows == 0
-                else "Vérifiez si ces doublons doivent être supprimés avant analyse."
+                else "Check whether these duplicates should be removed before analysis."
             ),
         },
     ]
